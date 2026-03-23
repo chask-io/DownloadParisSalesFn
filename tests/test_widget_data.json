@@ -1,0 +1,20 @@
+{
+  "function_name": "DownloadParisSalesFn",
+  "test_type": "widget_data",
+  "args": {
+    "node_id": "75290",
+    "verbose": true
+  },
+  "widget_params": {
+    "b2b_paris_user": "0a6ed1f7-2c87-4c3a-946f-69df1c1955ce",
+    "b2b_paris_pass": "6528a4b3-04cc-4d26-8fa8-00ec8cc55149"
+  },
+  "prompt": "",
+  "event_type": "function_call",
+  "extra_params": {},
+  "files": [],
+  "metadata": {
+    "description": "Test DownloadParisSalesFn widget data extraction with B2B Paris credentials",
+    "expected_status": "success"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "function_name": "DownloadParisSalesFn",
+  "test_type": "provided_params",
+  "args": {
+    "node_id": "75290",
+    "verbose": true
+  },
+  "widget_params": {},
+  "prompt": "",
+  "event_type": "function_call",
+  "extra_params": {},
+  "files": [],
+  "metadata": {
+    "description": "Test DownloadParisSalesFn with explicit node_id param",
+    "expected_status": "success"
+  }
+}

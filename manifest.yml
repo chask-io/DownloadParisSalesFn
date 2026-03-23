@@ -1,0 +1,42 @@
+function:
+  name: DownloadParisSalesFn
+  runtime: python3.12
+  handler: handler.lambda_handler
+  description: |
+    Ejecuta RPA en navegador para ingresar al B2B de Paris y descargar el archivo semanal de ventas por tienda y producto. Considera tiendas bloqueadas inferidas del contexto: si se puede filtrar en UI, las excluye; si no, descarga todo e incluye señalización/metadatos para filtrar en el cálculo.
+  timeout: 900
+  memory_size: 2048
+
+  layers:
+    - foundationMinimal
+    - foundationApi
+    - custom/browserbase_layer
+
+  parameters:
+    required:
+      - name: node_id
+        type: string
+        description: Node ID for widget configuration injection
+    optional:
+      - name: verbose
+        type: boolean
+        description: Enable verbose logging
+        default: false
+
+  widget:
+    enabled: true
+    type: dynamic_widget
+    params:
+      - name: b2b_paris_user
+        type: secret
+        required: true
+        description: Usuario B2B Paris (email)
+
+      - name: b2b_paris_pass
+        type: secret
+        required: true
+        description: "Contrase\xF1a B2B Paris"
+
+  testing:
+    handles_files: false
+    produces_files: true

@@ -1,0 +1,16 @@
+{
+  "function_name": "DownloadParisSalesFn",
+  "test_type": "operator_params",
+  "args": {},
+  "widget_params": {},
+  "prompt": "Descarga el informe de ventas semanales de Paris desde el portal B2B",
+  "event_type": "function_call",
+  "extra_params": {
+    "is_operator_params_test": true
+  },
+  "files": [],
+  "metadata": {
+    "description": "Test operator generating params for DownloadParisSalesFn",
+    "expected_status": "success"
+  }
+}
