@@ -319,18 +319,37 @@ class FunctionBackend:
 
         if not link_href:
             self._log("No download link found, falling back to Browserbase Downloads API")
-            return self._wait_for_browserbase_download()
+            file_bytes = self._wait_for_browserbase_download()
+            if file_bytes:
+                self._validate_download_content(file_bytes)
+            return file_bytes
 
-        # Step 5: Download the file via requests
-        self._log(f"Downloading file from link...")
-        response = requests.get(link_href, timeout=120)
+        # Step 5: Download the file via requests with authenticated cookies
+        self._log("Downloading file from link...")
+        cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+        response = requests.get(link_href, cookies=cookies, timeout=120)
         if response.status_code != 200:
             raise ValueError(f"File download failed with status {response.status_code}")
 
         file_bytes = response.content
         self._log(f"Downloaded {len(file_bytes)} bytes")
 
-        # Extract from ZIP if needed
+        # Validate content — if HTML received, fall back to browser click + Browserbase API
+        try:
+            self._validate_download_content(file_bytes)
+        except ValueError as e:
+            self._log(f"Direct download invalid: {e}")
+            self._log("Falling back to browser click + Browserbase Downloads API...")
+            driver.execute_script("""
+                const win = document.querySelector('.v-window');
+                if (win) { const a = win.querySelector('a[href]'); if (a) a.click(); }
+            """)
+            file_bytes_fallback = self._wait_for_browserbase_download()
+            if file_bytes_fallback:
+                self._validate_download_content(file_bytes_fallback)
+                return self._extract_from_zip_if_needed(file_bytes_fallback)
+            raise
+
         return self._extract_from_zip_if_needed(file_bytes)
 
     def _wait_for_download_link(self, driver: webdriver.Remote, timeout: int = 180) -> Optional[str]:
@@ -387,6 +406,45 @@ class FunctionBackend:
         self._log("Browserbase download timeout reached")
         return None
 
+    # ── Content validation ─────────────────────────────────────────────
+
+    def _validate_download_content(self, content: bytes) -> None:
+        """Validate that downloaded content is actual CSV/report data, not an HTML login page."""
+        if not content:
+            raise ValueError(
+                "El archivo descargado está vacío. "
+                "Intente ejecutar la función nuevamente."
+            )
+
+        # Detect HTML content (login page redirect when cookies are missing)
+        header = content[:500]
+        if b'<!DOCTYPE html' in header or b'<html' in header:
+            title = ""
+            try:
+                decoded = header.decode('utf-8', errors='ignore')
+                import re
+                title_match = re.search(r'<title[^>]*>(.*?)</title>', decoded, re.DOTALL | re.IGNORECASE)
+                if title_match:
+                    title = title_match.group(1).strip()
+            except Exception:
+                pass
+
+            raise ValueError(
+                f"El servidor devolvió una página HTML en lugar del archivo de ventas. "
+                f"{'Título: ' + title + '. ' if title else ''}"
+                f"Esto ocurre cuando la sesión no está autenticada o ha expirado. "
+                f"Tamaño recibido: {len(content):,} bytes. "
+                f"Intente ejecutar la función nuevamente."
+            )
+
+        # Warn on suspiciously small files (but don't fail — small reports are possible)
+        MIN_EXPECTED_SIZE = 100_000  # 100KB
+        if len(content) < MIN_EXPECTED_SIZE:
+            self._log(
+                f"WARNING: Downloaded file is only {len(content):,} bytes "
+                f"(expected > {MIN_EXPECTED_SIZE:,})"
+            )
+
     # ── File handling ──────────────────────────────────────────────────
 
     def _extract_from_zip_if_needed(self, file_bytes: bytes) -> bytes:
@@ -408,6 +466,7 @@ class FunctionBackend:
                 return file_bytes
         except zipfile.BadZipFile:
             self._log("Not a ZIP file, using raw content")
+            self._validate_download_content(file_bytes)
             return file_bytes
 
     def _upload_to_chask(self, file_bytes: bytes) -> Dict[str, Any]:
