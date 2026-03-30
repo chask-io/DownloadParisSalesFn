@@ -3,7 +3,8 @@
   "test_type": "provided_params",
   "args": {
     "node_id": "75290",
-    "verbose": true
+    "verbose": true,
+    "department": "hombre"
   },
   "widget_params": {},
   "prompt": "",

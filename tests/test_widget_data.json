@@ -3,7 +3,8 @@
   "test_type": "widget_data",
   "args": {
     "node_id": "75290",
-    "verbose": true
+    "verbose": true,
+    "department": "mujer"
   },
   "widget_params": {
     "b2b_paris_user": "0a6ed1f7-2c87-4c3a-946f-69df1c1955ce",
