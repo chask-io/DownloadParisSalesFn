@@ -1,0 +1,8 @@
+{
+	"function_uuid": "91e7a6a5-492f-4255-9b10-de058b1d149b",
+	"organization_id": "ab2e5a74-b3ef-4571-b977-17dfe2fda397",
+	"last_published_at": "2026-03-26T00:24:49.845Z",
+	"function_arn": "DownloadParisSalesFn-9b10de058b1d149b",
+	"function_name": "DownloadParisSalesFn",
+	"git_ref": "main"
+}
