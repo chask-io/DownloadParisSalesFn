@@ -7,8 +7,8 @@
     "department": "mujer"
   },
   "widget_params": {
-    "b2b_paris_user": "0a6ed1f7-2c87-4c3a-946f-69df1c1955ce",
-    "b2b_paris_pass": "6528a4b3-04cc-4d26-8fa8-00ec8cc55149"
+    "param_1": "0a6ed1f7-2c87-4c3a-946f-69df1c1955ce",
+    "param_2": "6528a4b3-04cc-4d26-8fa8-00ec8cc55149"
   },
   "prompt": "",
   "event_type": "function_call",
