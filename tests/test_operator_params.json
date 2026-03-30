@@ -3,7 +3,7 @@
   "test_type": "operator_params",
   "args": {},
   "widget_params": {},
-  "prompt": "Descarga el informe de ventas semanales de Paris desde el portal B2B",
+  "prompt": "Descarga el informe de ventas semanales de Paris desde el portal B2B para el departamento hombre",
   "event_type": "function_call",
   "extra_params": {
     "is_operator_params_test": true

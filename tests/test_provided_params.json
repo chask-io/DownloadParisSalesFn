@@ -12,7 +12,7 @@
   "extra_params": {},
   "files": [],
   "metadata": {
-    "description": "Test DownloadParisSalesFn with explicit node_id param",
+    "description": "Test DownloadParisSalesFn with department=hombre filter",
     "expected_status": "success"
   }
 }
