@@ -3,7 +3,8 @@
   "test_type": "provided_params",
   "args": {
     "node_id": "75290",
-    "verbose": true
+    "verbose": true,
+    "department": "hombre"
   },
   "widget_params": {},
   "prompt": "",
@@ -11,7 +12,7 @@
   "extra_params": {},
   "files": [],
   "metadata": {
-    "description": "Test DownloadParisSalesFn with explicit node_id param",
+    "description": "Test DownloadParisSalesFn with department=hombre filter",
     "expected_status": "success"
   }
 }

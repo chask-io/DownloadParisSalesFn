@@ -65,6 +65,7 @@ class FunctionBackend:
     def process_request(self) -> str:
         tool_args = self._extract_tool_args()
         self.verbose = tool_args.get("verbose", False)
+        department = tool_args.get("department", "").strip().lower()
 
         bb_api_key, bb_project_id = self._get_browserbase_credentials()
         self._browserbase_api_key = bb_api_key
@@ -88,6 +89,7 @@ class FunctionBackend:
                 self._login(driver, b2b_user, b2b_pass)
                 self._wait_vaadin(driver)
                 self._navigate_to_informe_ventas(driver)
+                self._select_department(driver, department)
                 self._generate_report(driver)
                 self._wait_for_report_data(driver)
                 file_bytes = self._download_report(driver)
@@ -95,10 +97,11 @@ class FunctionBackend:
                 if not file_bytes:
                     raise ValueError("Failed to download sales report file")
 
-                file_data = self._upload_to_chask(file_bytes)
+                file_data = self._upload_to_chask(file_bytes, department)
 
+                dept_label = f" ({department})" if department else ""
                 return (
-                    f"B2B Paris sales report downloaded successfully!\n\n"
+                    f"B2B Paris sales report{dept_label} downloaded successfully!\n\n"
                     f"Download: {file_data.get('file_url', 'URL not available')}"
                 )
             finally:
@@ -212,6 +215,175 @@ class FunctionBackend:
 
         self._log("Waiting for report form to load...")
         time.sleep(5)
+
+    # ── Department filter ──────────────────────────────────────────────
+
+    def _select_department(self, driver: webdriver.Remote, department: str) -> None:
+        """Select department via the 'Linea' filter on the Informe de Ventas form.
+
+        The B2B Paris portal uses 'Linea' to filter by high-level department
+        (e.g. Hombre, Mujer). This is a Vaadin ComboBox (v-filterselect).
+        Fails gracefully if the filter is not found.
+        """
+        if not department:
+            self._log("No department filter specified, downloading all departments")
+            return
+
+        self._log(f"Selecting department filter (Linea): '{department}'...")
+
+        # Step 1: Find and open the Linea ComboBox
+        result = driver.execute_script("""
+            var dept = arguments[0];
+
+            // Find labels matching 'Linea', 'Línea', 'Departamento', 'División'
+            var targetLabels = ['linea', 'línea', 'departamento', 'división', 'division'];
+            var labels = document.querySelectorAll('.v-caption, .v-caption-on-top, label');
+
+            for (var i = 0; i < labels.length; i++) {
+                var text = labels[i].textContent.trim().toLowerCase();
+                var matched = false;
+                for (var t = 0; t < targetLabels.length; t++) {
+                    if (text.indexOf(targetLabels[t]) !== -1) { matched = true; break; }
+                }
+                if (!matched) continue;
+
+                // Walk up to find the containing slot, then find the ComboBox input
+                var container = labels[i].closest('.v-slot');
+                if (!container) container = labels[i].parentElement;
+
+                // The ComboBox may be in the next sibling slot
+                var combo = container.querySelector('.v-filterselect-input');
+                if (!combo && container.nextElementSibling) {
+                    combo = container.nextElementSibling.querySelector('.v-filterselect-input');
+                }
+                // Or look in parent's children
+                if (!combo && container.parentElement) {
+                    var slots = container.parentElement.querySelectorAll('.v-filterselect-input');
+                    if (slots.length > 0) {
+                        // Pick the one closest after our label
+                        var labelIdx = Array.from(container.parentElement.children).indexOf(container);
+                        for (var s = 0; s < container.parentElement.children.length; s++) {
+                            if (s > labelIdx) {
+                                combo = container.parentElement.children[s].querySelector('.v-filterselect-input');
+                                if (combo) break;
+                            }
+                        }
+                    }
+                }
+
+                if (combo) {
+                    // Open the dropdown button first
+                    var btn = combo.closest('.v-filterselect').querySelector('.v-filterselect-button');
+                    if (btn) btn.click();
+                    return {found: true, type: 'combobox', label: text};
+                }
+
+                // Check for native select
+                var sel = container.querySelector('select');
+                if (!sel && container.nextElementSibling) {
+                    sel = container.nextElementSibling.querySelector('select');
+                }
+                if (sel) {
+                    var options = sel.querySelectorAll('option');
+                    for (var j = 0; j < options.length; j++) {
+                        if (options[j].textContent.trim().toLowerCase().indexOf(dept) !== -1) {
+                            sel.value = options[j].value;
+                            sel.dispatchEvent(new Event('change', {bubbles: true}));
+                            return {found: true, type: 'select', label: text};
+                        }
+                    }
+                }
+            }
+
+            return {found: false};
+        """, department)
+
+        if not result or not result.get("found"):
+            self._log(
+                "WARNING: Department filter (Linea) not found on page. "
+                "Continuing with all departments."
+            )
+            return
+
+        self._log(f"Found '{result.get('label')}' filter ({result.get('type')})")
+
+        if result.get("type") == "select":
+            self._log(f"Department '{department}' selected via native select")
+            time.sleep(2)
+            return
+
+        # Step 2: Wait for ComboBox dropdown to open, then select matching option
+        time.sleep(1)
+        selected = driver.execute_script("""
+            var dept = arguments[0];
+            var items = document.querySelectorAll(
+                '.v-filterselect-suggestpopup .gwt-MenuItem, ' +
+                '.v-filterselect-suggestmenu .gwt-MenuItem, ' +
+                '.v-filterselect-suggestpopup td'
+            );
+            for (var i = 0; i < items.length; i++) {
+                var text = items[i].textContent.trim().toLowerCase();
+                if (text.indexOf(dept) !== -1) {
+                    items[i].click();
+                    return {selected: true, text: items[i].textContent.trim()};
+                }
+            }
+            return {selected: false, count: items.length};
+        """, department)
+
+        if selected and selected.get("selected"):
+            self._log(f"Department selected: '{selected.get('text')}'")
+        else:
+            # Fallback: type into the ComboBox input to filter
+            self._log(f"No matching option in dropdown ({selected.get('count', 0)} items). Typing to filter...")
+            driver.execute_script("""
+                var dept = arguments[0];
+                var inputs = document.querySelectorAll('.v-filterselect-input');
+                for (var i = 0; i < inputs.length; i++) {
+                    // Find the one that's currently focused/active
+                    var fs = inputs[i].closest('.v-filterselect');
+                    if (fs && fs.classList.contains('v-filterselect-focus')) {
+                        inputs[i].value = dept;
+                        inputs[i].dispatchEvent(new Event('input', {bubbles: true}));
+                        return true;
+                    }
+                }
+                // Fallback: use the last interacted input
+                if (inputs.length > 0) {
+                    var last = inputs[inputs.length - 1];
+                    last.focus();
+                    last.value = dept;
+                    last.dispatchEvent(new Event('input', {bubbles: true}));
+                    return true;
+                }
+                return false;
+            """, department)
+            time.sleep(1)
+
+            # Try selecting from filtered results
+            picked = driver.execute_script("""
+                var dept = arguments[0];
+                var items = document.querySelectorAll(
+                    '.v-filterselect-suggestpopup .gwt-MenuItem, ' +
+                    '.v-filterselect-suggestmenu .gwt-MenuItem, ' +
+                    '.v-filterselect-suggestpopup td'
+                );
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].textContent.trim().toLowerCase().indexOf(dept) !== -1) {
+                        items[i].click();
+                        return true;
+                    }
+                }
+                if (items.length > 0) { items[0].click(); return true; }
+                return false;
+            """, department)
+
+            if picked:
+                self._log(f"Department '{department}' selected after filtering")
+            else:
+                self._log("WARNING: Could not select department from dropdown. Continuing with all.")
+
+        time.sleep(2)
 
     # ── Report generation ──────────────────────────────────────────────
 
@@ -469,10 +641,11 @@ class FunctionBackend:
             self._validate_download_content(file_bytes)
             return file_bytes
 
-    def _upload_to_chask(self, file_bytes: bytes) -> Dict[str, Any]:
+    def _upload_to_chask(self, file_bytes: bytes, department: str = "") -> Dict[str, Any]:
         """Upload file to Chask storage."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"paris_ventas_{timestamp}.csv"
+        dept_suffix = f"_{department}" if department else ""
+        filename = f"paris_ventas{dept_suffix}_{timestamp}.csv"
         self._log(f"Uploading {filename} ({len(file_bytes)} bytes)...")
 
         file_obj = io.BytesIO(file_bytes)
